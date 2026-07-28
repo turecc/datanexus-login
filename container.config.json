@@ -25,6 +25,7 @@
 	"executeSQLs":[
 		"CREATE DATABASE IF NOT EXISTS golang_demo;",
 		"USE golang_demo;",
-		"CREATE TABLE IF NOT EXISTS `Counters` (`id` int(11) NOT NULL AUTO_INCREMENT, `count` int(11) NOT NULL DEFAULT 1, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`)) ENGINE = InnoDB DEFAULT CHARSET = utf8;"
+		"CREATE TABLE IF NOT EXISTS `Counters` (`id` int(11) NOT NULL AUTO_INCREMENT, `count` int(11) NOT NULL DEFAULT 1, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`)) ENGINE = InnoDB DEFAULT CHARSET = utf8;",
+		"CREATE TABLE IF NOT EXISTS `DatanexusUsers` (`id` bigint unsigned NOT NULL AUTO_INCREMENT, `openId` varchar(128) NOT NULL, `appId` varchar(64) NOT NULL DEFAULT '', `unionId` varchar(128) NOT NULL DEFAULT '', `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `lastLoginAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `uk_datanexus_users_openid` (`openId`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;"
 	]                                            
 }
