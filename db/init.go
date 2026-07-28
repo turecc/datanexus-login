@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"wxcloudrun-golang/db/model"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -12,10 +14,9 @@ import (
 
 var dbInstance *gorm.DB
 
-// Init 初始化数据库
+// Init 初始化数据库。
 func Init() error {
-
-	source := "%s:%s@tcp(%s)/%s?readTimeout=1500ms&writeTimeout=1500ms&charset=utf8&loc=Local&&parseTime=true"
+	sourceTemplate := "%s:%s@tcp(%s)/%s?readTimeout=1500ms&writeTimeout=1500ms&charset=utf8mb4&loc=Local&parseTime=true"
 	user := os.Getenv("MYSQL_USERNAME")
 	pwd := os.Getenv("MYSQL_PASSWORD")
 	addr := os.Getenv("MYSQL_ADDRESS")
@@ -23,38 +24,44 @@ func Init() error {
 	if dataBase == "" {
 		dataBase = "golang_demo"
 	}
-	source = fmt.Sprintf(source, user, pwd, addr, dataBase)
-	fmt.Println("start init mysql with ", source)
 
-	db, err := gorm.Open(mysql.Open(source), &gorm.Config{
+	if user == "" || addr == "" {
+		return fmt.Errorf("mysql environment variables are incomplete")
+	}
+
+	source := fmt.Sprintf(sourceTemplate, user, pwd, addr, dataBase)
+	fmt.Printf("start init mysql, address=%s, database=%s, user=%s\n", addr, dataBase, user)
+
+	database, err := gorm.Open(mysql.Open(source), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true, // use singular table name, table for `User` would be `user` with this option enabled
-		}})
+			SingularTable: true,
+		},
+	})
 	if err != nil {
-		fmt.Println("DB Open error,err=", err.Error())
-		return err
+		return fmt.Errorf("open mysql failed: %w", err)
 	}
 
-	sqlDB, err := db.DB()
+	sqlDB, err := database.DB()
 	if err != nil {
-		fmt.Println("DB Init error,err=", err.Error())
-		return err
+		return fmt.Errorf("initialize mysql failed: %w", err)
 	}
 
-	// 用于设置连接池中空闲连接的最大数量
-	sqlDB.SetMaxIdleConns(100)
-	// 设置打开数据库连接的最大数量
-	sqlDB.SetMaxOpenConns(200)
-	// 设置了连接可复用的最大时间
+	sqlDB.SetMaxIdleConns(20)
+	sqlDB.SetMaxOpenConns(50)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	dbInstance = db
+	dbInstance = database
 
-	fmt.Println("finish init mysql with ", source)
+	// 自动确保 DataNexus 登录表存在，后续 Git 推送发布无需手工执行 SQL。
+	if err := database.AutoMigrate(&model.DataNexusUserModel{}); err != nil {
+		return fmt.Errorf("migrate datanexus users table failed: %w", err)
+	}
+
+	fmt.Println("finish init mysql")
 	return nil
 }
 
-// Get ...
+// Get 返回数据库实例。
 func Get() *gorm.DB {
 	return dbInstance
 }
