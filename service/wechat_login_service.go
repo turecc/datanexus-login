@@ -1,13 +1,16 @@
 package service
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
 
+	"wxcloudrun-golang/db"
 	"wxcloudrun-golang/db/dao"
 )
 
@@ -33,6 +36,16 @@ func WechatLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 容器端口已经启动、数据库仍在后台连接时立即返回，避免 callContainer 等到 15 秒超时。
+	if !db.IsReady() {
+		w.Header().Set("Retry-After", "1")
+		writeWechatLoginJSON(w, http.StatusServiceUnavailable, WechatLoginResponse{
+			Success: false,
+			Error:   "SERVICE_STARTING",
+		})
+		return
+	}
+
 	// 这些请求头由微信云托管在 wx.cloud.callContainer 调用时自动注入。
 	openID := r.Header.Get("X-WX-OPENID")
 	appID := r.Header.Get("X-WX-APPID")
@@ -48,13 +61,27 @@ func WechatLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
+	queryCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
 	isNewUser, err := dao.RegisterOrLoginDataNexusUser(
+		queryCtx,
 		openID,
 		appID,
 		unionID,
 		now,
 	)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(queryCtx.Err(), context.DeadlineExceeded) {
+			log.Printf("[WechatLogin] database timeout, user=%s", maskOpenID(openID))
+			w.Header().Set("Retry-After", "1")
+			writeWechatLoginJSON(w, http.StatusServiceUnavailable, WechatLoginResponse{
+				Success: false,
+				Error:   "DATABASE_TIMEOUT",
+			})
+			return
+		}
+
 		log.Printf("[WechatLogin] database error, user=%s, err=%v", maskOpenID(openID), err)
 		writeWechatLoginJSON(w, http.StatusInternalServerError, WechatLoginResponse{
 			Success: false,
