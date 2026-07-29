@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"wxcloudrun-golang/db"
 	"wxcloudrun-golang/db/dao"
 	"wxcloudrun-golang/db/model"
 
@@ -20,7 +21,7 @@ type JsonResult struct {
 	Data     interface{} `json:"data"`
 }
 
-// IndexHandler 计数器接口
+// IndexHandler 主页接口。该接口不依赖数据库，可用于容器端口存活检查。
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := getIndex()
 	if err != nil {
@@ -32,6 +33,17 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 // CounterHandler 计数器接口
 func CounterHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "application/json")
+	if !db.IsReady() {
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(&JsonResult{
+			Code:     -1,
+			ErrorMsg: "SERVICE_STARTING",
+		})
+		return
+	}
+
 	res := &JsonResult{}
 
 	if r.Method == http.MethodGet {
@@ -60,8 +72,7 @@ func CounterHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "内部错误")
 		return
 	}
-	w.Header().Set("content-type", "application/json")
-	w.Write(msg)
+	_, _ = w.Write(msg)
 }
 
 // modifyCounter 更新计数，自增或者清零
