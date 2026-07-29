@@ -1,6 +1,8 @@
 package dao
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"wxcloudrun-golang/db"
@@ -12,12 +14,17 @@ import (
 // RegisterOrLoginDataNexusUser 写入首次登录记录，已存在时只更新最后登录时间。
 // 返回 true 表示首次成功插入，false 表示该 OpenID 已存在。
 func RegisterOrLoginDataNexusUser(
+	ctx context.Context,
 	openID string,
 	appID string,
 	unionID string,
 	now time.Time,
 ) (bool, error) {
 	cli := db.Get()
+	if cli == nil {
+		return false, fmt.Errorf("database is not ready")
+	}
+	cli = cli.WithContext(ctx)
 
 	user := &model.DataNexusUserModel{
 		OpenID:      openID,
